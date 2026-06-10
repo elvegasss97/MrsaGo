@@ -625,18 +625,19 @@ async function confirmPay(){
     ts: Date.now()
   };
   document.getElementById("confirmBtn").innerText="Enviando a cocina…";
+  await askNotifications();
   try{
-    await askNotifications();
     await pushOrder(order);
-    document.getElementById("orderNum").innerText = "#"+String(n).padStart(3,"0");
-    updateOrderStatus("received");
-    closePay();
-    document.getElementById("success").classList.add("open");
-    watchMyOrder(myOrderId);
   }catch(e){
-    alert("No se pudo enviar el pedido. Asegúrate de abrir esta demo desde el servidor local.");
+    alert("No se pudo enviar el pedido. Revisa que tienes internet y vuelve a intentarlo. Detalle: "+(e.message||e));
     document.getElementById("confirmBtn").innerText="Confirmar y pagar "+money(total);
+    return;
   }
+  document.getElementById("orderNum").innerText = "#"+String(n).padStart(3,"0");
+  updateOrderStatus("received");
+  closePay();
+  document.getElementById("success").classList.add("open");
+  try{ watchMyOrder(myOrderId); }catch(e){ console.warn("No se pudo activar seguimiento en tiempo real", e); }
 }
 function resetAll(){
   cart = {};
