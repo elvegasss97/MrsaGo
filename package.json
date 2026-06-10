@@ -1,0 +1,14 @@
+{
+  "name": "mesago-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MesaGo demo cloud: cliente QR + cocina/barra en tiempo real",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
