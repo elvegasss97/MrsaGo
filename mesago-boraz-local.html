@@ -68,6 +68,12 @@
   .cartbar .ct-t{font-weight:800;font-size:15px;margin-top:1px;}
   .cartbar button{border:none;background:var(--dark);color:#fff;padding:12px 20px;border-radius:12px;font-weight:800;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;}
   .cartbar button .cnt{background:var(--gold);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;}
+  .billbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#fff;border-top:1px solid var(--border);padding:12px 16px;box-shadow:0 -4px 20px rgba(0,0,0,.08);z-index:39;display:none;}
+  .billbar.show{display:block;}
+  .billbar-inner{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .billbar .bl-l{font-size:11px;color:var(--muted);}.billbar .bl-t{font-weight:800;font-size:14px;margin-top:1px;}
+  .billbar button{border:none;background:var(--dark);color:#fff;padding:12px 16px;border-radius:12px;font-weight:800;cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;}
+  .billbar button:disabled{background:var(--border);color:var(--muted);cursor:default;}
 
   /* DRAWER / MODAL */
   .drawer{position:fixed;inset:0;z-index:50;display:none;background:rgba(0,0,0,.45);}
@@ -166,6 +172,13 @@
   </div>
 </div>
 
+<div class="billbar" id="billbar">
+  <div class="billbar-inner">
+    <div><div class="bl-l">Mesa 13</div><div class="bl-t" id="billbarText">¿Terminaste?</div></div>
+    <button id="billbarBtn" onclick="requestBill()">🧾 Pedir cuenta</button>
+  </div>
+</div>
+
 <!-- DRAWER -->
 <div class="drawer" id="drawer" onclick="if(event.target.id==='drawer')closeCart()">
   <div class="drawer-panel">
@@ -204,7 +217,7 @@
   <div class="ordernum"><div class="l">Número de pedido</div><div class="n" id="orderNum">#000</div><div class="m">Mesa 13 · Boraz Chiringo Club</div></div>
   <div class="status">📥 Recibido</div>
   <p class="status-hint" id="statusHint">No te preocupes, en breves empezaremos a preparar tu pedido.</p>
-  <button class="btn-primary" style="width:auto;padding:13px 28px;margin-bottom:10px;" onclick="requestBill()">🧾 Pedir la cuenta</button>
+  <button class="btn-primary" id="billBtn" style="width:auto;padding:13px 28px;margin-bottom:10px;" onclick="requestBill()">🧾 Pedir la cuenta</button>
   <button class="btn-primary" style="width:auto;padding:13px 28px;background:#EFEFEF;color:#111;" onclick="resetAll()">🍺 Pedir otra ronda</button>
 </div>
 <div class="toast" id="toast"></div>
@@ -388,6 +401,9 @@ let cart = {};       // key -> {id,name,variant,price,qty}
 let payMethod = "card";
 let myOrderId = null;
 let lastOrderStatus = null;
+let hasOrdered = false;
+let billRequested = false;
+let billRequestInFlight = false;
 let waitingTimer = null;
 let toastTimer = null;
 const MESA = 13;
@@ -537,6 +553,21 @@ function renderCartBar(){
   document.getElementById("cartbar").classList.toggle("show", count>0);
   document.getElementById("cartCnt").innerText = count;
   document.getElementById("cartTotal").innerText = money(total);
+  renderBillBar();
+}
+function renderBillBar(){
+  const {count} = cartSummary();
+  const bar=document.getElementById("billbar");
+  const btn=document.getElementById("billbarBtn");
+  const text=document.getElementById("billbarText");
+  const successBtn=document.getElementById("billBtn");
+  const show = hasOrdered && count===0 && !document.getElementById("success").classList.contains("open");
+  if(bar) bar.classList.toggle("show", show);
+  const disabled = billRequested || billRequestInFlight;
+  const label = billRequested ? "✅ Cuenta solicitada" : billRequestInFlight ? "Enviando…" : "🧾 Pedir cuenta";
+  if(btn){ btn.disabled=disabled; btn.innerText=label; }
+  if(successBtn){ successBtn.disabled=disabled; successBtn.innerText=label; }
+  if(text) text.innerText = billRequested ? "Cuenta solicitada" : "¿Terminaste?";
 }
 
 function renderCartList(){
@@ -633,14 +664,23 @@ async function confirmPay(){
     document.getElementById("confirmBtn").innerText="Enviar pedido";
     return;
   }
+  hasOrdered = true;
   document.getElementById("orderNum").innerText = "#"+String(n).padStart(3,"0");
   updateOrderStatus("received");
   closePay();
   document.getElementById("success").classList.add("open");
+  renderBillBar();
   try{ watchMyOrder(myOrderId); }catch(e){ console.warn("No se pudo activar seguimiento en tiempo real", e); }
 }
 async function requestBill(){
-  const billId = 'bill-'+Date.now();
+  if(billRequested){
+    showToast('✅ Cuenta ya solicitada', 'Ya hemos avisado a barra. El camarero te la llevará a la mesa.');
+    return;
+  }
+  if(billRequestInFlight) return;
+  billRequestInFlight = true;
+  renderBillBar();
+  const billId = 'bill-mesa-'+MESA;
   const bill = {
     id: billId,
     type: 'bill',
@@ -654,11 +694,15 @@ async function requestBill(){
   };
   try{
     await pushOrder(bill);
+    billRequested = true;
     showToast('🧾 Cuenta solicitada', 'Hemos avisado a barra. El camarero te traerá la cuenta a la mesa.');
     const hint=document.getElementById('statusHint');
     if(hint) hint.innerText='Cuenta solicitada. El camarero te la llevará a la mesa.';
   }catch(e){
     alert('No se pudo pedir la cuenta. Revisa tu conexión e inténtalo de nuevo.');
+  }finally{
+    billRequestInFlight = false;
+    renderBillBar();
   }
 }
 function resetAll(){
@@ -667,7 +711,7 @@ function resetAll(){
   clearTimeout(waitingTimer);
   document.getElementById("success").classList.remove("open");
   document.getElementById("toast").classList.remove("show");
-  renderMenu(); renderCartBar();
+  renderMenu(); renderCartBar(); renderBillBar();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
