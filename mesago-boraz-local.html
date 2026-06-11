@@ -174,37 +174,38 @@
     <div class="drawer-body" id="cartList"></div>
     <div class="drawer-foot">
       <div class="foot-row"><span class="fl">IVA incluido</span><span class="ft" id="drawerTotal">0,00 €</span></div>
-      <button class="btn-primary" id="payBtn" onclick="openPay()">Proceder al pago →</button>
+      <button class="btn-primary" id="payBtn" onclick="openPay()">Enviar pedido a cocina →</button>
     </div>
   </div>
 </div>
 
 <!-- PAY VIEW -->
 <div class="pay-view" id="payView">
-  <div class="pay-top"><button onclick="closePay()">←</button><h2>Forma de pago</h2></div>
+  <div class="pay-top"><button onclick="closePay()">←</button><h2>Confirmar pedido</h2></div>
   <div class="pay-body">
-    <div class="pm sel" data-pm="card" onclick="selectPay('card')"><div class="em">💳</div><div class="pml"><div class="t">Tarjeta</div><div class="s">Visa, Mastercard, Amex</div></div><div class="radio"></div></div>
-    <div class="pm" data-pm="bizum" onclick="selectPay('bizum')"><div class="em">📱</div><div class="pml"><div class="t">Bizum</div><div class="s">Pago instantáneo al móvil</div></div><div class="radio"></div></div>
-    <div class="pm" data-pm="cash" onclick="selectPay('cash')"><div class="em">💵</div><div class="pml"><div class="t">Efectivo</div><div class="s">El camarero traerá el cambio</div></div><div class="radio"></div></div>
+    <div class="pm sel" data-pm="card" onclick="selectPay('card')"><div class="em">💳</div><div class="pml"><div class="t">Pago en mesa</div><div class="s">Desactivado en piloto</div></div><div class="radio"></div></div>
+    <div class="pm" data-pm="bizum" onclick="selectPay('bizum')"><div class="em">📱</div><div class="pml"><div class="t">Bizum en mesa</div><div class="s">Desactivado en piloto</div></div><div class="radio"></div></div>
+    <div class="pm" data-pm="cash" onclick="selectPay('cash')"><div class="em">💵</div><div class="pml"><div class="t">Efectivo en mesa</div><div class="s">Pagarás al camarero en mesa</div></div><div class="radio"></div></div>
     <div class="pay-summary">
       <div class="h">Resumen del pedido</div>
       <div id="paySummary"></div>
       <div class="st"><span class="l">Total</span><span class="v" id="payTotal">0,00 €</span></div>
     </div>
-    <button class="btn-primary" style="margin-top:14px;" id="confirmBtn" onclick="confirmPay()">Confirmar y pagar</button>
-    <p class="secure">🔒 Pago seguro · Mesa 13 · Boraz Chiringo Club</p>
+    <button class="btn-primary" style="margin-top:14px;" id="confirmBtn" onclick="confirmPay()">Enviar pedido</button>
+    <p class="secure">Pedido sin pago online · pagarás al camarero en mesa</p>
   </div>
 </div>
 
 <!-- SUCCESS -->
 <div class="success" id="success">
   <div class="check">✅</div>
-  <h2>¡Pedido confirmado!</h2>
-  <p class="msg">Tu pedido ha llegado a cocina.<br>En unos minutos lo tendrás en la mesa.</p>
+  <h2>¡Pedido enviado a cocina!</h2>
+  <p class="msg">Tu pedido ha llegado a barra/cocina.<br>Te lo llevaremos a la mesa en cuanto esté listo.</p>
   <div class="ordernum"><div class="l">Número de pedido</div><div class="n" id="orderNum">#000</div><div class="m">Mesa 13 · Boraz Chiringo Club</div></div>
   <div class="status">📥 Recibido</div>
   <p class="status-hint" id="statusHint">No te preocupes, en breves empezaremos a preparar tu pedido.</p>
-  <button class="btn-primary" style="width:auto;padding:13px 28px;" onclick="resetAll()">🍺 Pedir otra ronda</button>
+  <button class="btn-primary" style="width:auto;padding:13px 28px;margin-bottom:10px;" onclick="requestBill()">🧾 Pedir la cuenta</button>
+  <button class="btn-primary" style="width:auto;padding:13px 28px;background:#EFEFEF;color:#111;" onclick="resetAll()">🍺 Pedir otra ronda</button>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -568,7 +569,7 @@ function renderPaySummary(){
     `<div class="sr"><span>${i.qty}× ${i.name} <span style="color:var(--muted)">(${i.variant})</span></span><span>${money(i.qty*i.price)}</span></div>`
   ).join("");
   document.getElementById("payTotal").innerText = money(total);
-  document.getElementById("confirmBtn").innerText = "Confirmar y pagar "+money(total);
+  document.getElementById("confirmBtn").innerText = "Enviar pedido "+money(total);
 }
 
 // ─── NAV / SCROLL ───
@@ -600,9 +601,8 @@ function openCart(){ renderCartList(); document.getElementById("drawer").classLi
 function closeCart(){ document.getElementById("drawer").classList.remove("open"); }
 function openPay(){
   if(Object.keys(cart).length===0) return;
-  renderPaySummary();
   closeCart();
-  document.getElementById("payView").classList.add("open");
+  confirmPay();
 }
 function closePay(){ document.getElementById("payView").classList.remove("open"); }
 function selectPay(m){
@@ -619,7 +619,7 @@ async function confirmPay(){
     num: n,
     mesa: MESA,
     total,
-    pago: payMethod,
+    pago: "en mesa",
     items: items.map(i=>({name:i.name,variant:i.variant,qty:i.qty,price:i.price})),
     status: "received",
     ts: Date.now()
@@ -630,7 +630,7 @@ async function confirmPay(){
     await pushOrder(order);
   }catch(e){
     alert("No se pudo enviar el pedido. Revisa que tienes internet y vuelve a intentarlo. Detalle: "+(e.message||e));
-    document.getElementById("confirmBtn").innerText="Confirmar y pagar "+money(total);
+    document.getElementById("confirmBtn").innerText="Enviar pedido";
     return;
   }
   document.getElementById("orderNum").innerText = "#"+String(n).padStart(3,"0");
@@ -638,6 +638,28 @@ async function confirmPay(){
   closePay();
   document.getElementById("success").classList.add("open");
   try{ watchMyOrder(myOrderId); }catch(e){ console.warn("No se pudo activar seguimiento en tiempo real", e); }
+}
+async function requestBill(){
+  const billId = 'bill-'+Date.now();
+  const bill = {
+    id: billId,
+    type: 'bill',
+    num: 'CUENTA',
+    mesa: MESA,
+    total: 0,
+    pago: 'cuenta solicitada',
+    items: [],
+    status: 'bill_requested',
+    ts: Date.now()
+  };
+  try{
+    await pushOrder(bill);
+    showToast('🧾 Cuenta solicitada', 'Hemos avisado a barra. El camarero te traerá la cuenta a la mesa.');
+    const hint=document.getElementById('statusHint');
+    if(hint) hint.innerText='Cuenta solicitada. El camarero te la llevará a la mesa.';
+  }catch(e){
+    alert('No se pudo pedir la cuenta. Revisa tu conexión e inténtalo de nuevo.');
+  }
 }
 function resetAll(){
   cart = {};
