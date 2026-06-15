@@ -921,14 +921,16 @@ async function requestBill(){
   billRequestInFlight = true;
   renderBillBar();
   const billId = 'bill-mesa-'+MESA;
+  const accountReceipt = getReceiptOrder();
   const bill = {
     id: billId,
     type: 'bill',
     num: 'CUENTA',
     mesa: MESA,
-    total: 0,
+    total: accountReceipt.total || 0,
     pago: 'cuenta solicitada',
-    items: [],
+    items: accountReceipt.items || [],
+    account: accountReceipt,
     status: 'bill_requested',
     ts: Date.now()
   };
