@@ -508,6 +508,7 @@ let cart = {};       // key -> {id,name,variant,price,qty}
 let payMethod = "card";
 let myOrderId = null;
 let lastOrderSnapshot = null;
+let accountOrders = [];
 let lastOrderStatus = null;
 let hasOrdered = false;
 let billRequested = false;
@@ -766,6 +767,7 @@ async function confirmPay(){
     ts: Date.now()
   };
   lastOrderSnapshot = order;
+  accountOrders.push(order);
   document.getElementById("confirmBtn").innerText="Enviando a cocina…";
   await askNotifications();
   try{
@@ -830,16 +832,39 @@ function sendFeedbackComment(skip=false){
 function escapeHtml(str){
   return String(str ?? '').replace(/[&<>"']/g, ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
 }
+function buildAccountReceiptOrder(){
+  const orders = accountOrders.length ? accountOrders : (lastOrderSnapshot ? [lastOrderSnapshot] : []);
+  const grouped = {};
+  orders.forEach(order=>{
+    (order.items || []).forEach(item=>{
+      const key = [item.name, item.variant, item.price].join('|');
+      if(!grouped[key]) grouped[key] = {name:item.name, variant:item.variant, price:item.price, qty:0};
+      grouped[key].qty += item.qty;
+    });
+  });
+  const items = Object.values(grouped);
+  const total = items.reduce((sum,item)=>sum + item.qty*item.price, 0);
+  return {
+    num: orders.length > 1 ? 'VARIAS' : (orders[0]?.num || 'PREVIO'),
+    mesa: MESA,
+    total,
+    items,
+    rounds: orders.length,
+    ts: orders[0]?.ts || Date.now(),
+    pago:'en mesa'
+  };
+}
 function getReceiptOrder(){
-  if(lastOrderSnapshot) return lastOrderSnapshot;
+  const account = buildAccountReceiptOrder();
+  if(account.items.length) return account;
   const items = Object.values(cart);
   const {total} = cartSummary();
-  return {num:'PREVIO', mesa:MESA, total, items:items.map(i=>({name:i.name,variant:i.variant,qty:i.qty,price:i.price})), ts:Date.now(), pago:'en mesa'};
+  return {num:'PREVIO', mesa:MESA, total, items:items.map(i=>({name:i.name,variant:i.variant,qty:i.qty,price:i.price})), rounds:0, ts:Date.now(), pago:'en mesa'};
 }
 function receiptText(order){
   const lines = [
     'BORAZ Chiringo Club · MesaGo',
-    'Mesa '+(order.mesa || MESA)+' · Pedido #'+String(order.num || '000').padStart(3,'0'),
+    'Mesa '+(order.mesa || MESA)+' · '+(order.rounds > 1 ? order.rounds+' rondas' : 'Pedido #'+String(order.num || '000').padStart(3,'0')),
     new Date(order.ts || Date.now()).toLocaleString('es-ES'),
     '',
     ...(order.items || []).map(i=>`${i.qty}x ${i.name} (${i.variant}) — ${money(i.qty*i.price)}`),
@@ -853,9 +878,9 @@ function renderReceipt(){
   const order = getReceiptOrder();
   const box = document.getElementById('receiptBox');
   const rows = (order.items || []).map(i=>`<div class="receipt-row"><span><b>${i.qty}× ${escapeHtml(i.name)}</b><br><span style="color:var(--muted)">${escapeHtml(i.variant)}</span></span><span>${money(i.qty*i.price)}</span></div>`).join('') || '<div class="receipt-row"><span>Cuenta solicitada</span><span>—</span></div>';
-  box.innerHTML = `<div class="receipt-meta"><span>Mesa ${order.mesa || MESA}</span><span>#${String(order.num || '000').padStart(3,'0')}</span></div>${rows}<div class="receipt-total"><span>Total</span><span>${money(order.total || 0)}</span></div>`;
+  box.innerHTML = `<div class="receipt-meta"><span>Mesa ${order.mesa || MESA}</span><span>${order.rounds > 1 ? order.rounds+' rondas' : '#'+String(order.num || '000').padStart(3,'0')}</span></div>${rows}<div class="receipt-total"><span>Total</span><span>${money(order.total || 0)}</span></div>`;
   const text = receiptText(order);
-  document.getElementById('receiptEmail').href = 'mailto:?subject='+encodeURIComponent('Recibo BORAZ Mesa '+(order.mesa || MESA))+'&body='+encodeURIComponent(text);
+  document.getElementById('receiptEmail').href = 'mailto:?subject='+encodeURIComponent('Recibo BORAZ Mesa '+(order.mesa || MESA)+(order.rounds > 1 ? ' · cuenta completa' : ''))+'&body='+encodeURIComponent(text);
   document.getElementById('receiptWhatsApp').href = 'https://wa.me/?text='+encodeURIComponent(text);
 }
 function openReceipt(){
@@ -870,7 +895,7 @@ function printReceipt(){
   const rows = (order.items || []).map(i=>`<tr><td>${i.qty}× ${escapeHtml(i.name)}<br><small>${escapeHtml(i.variant)}</small></td><td style="text-align:right">${money(i.qty*i.price)}</td></tr>`).join('');
   const w = window.open('', '_blank', 'width=420,height=640');
   if(!w){ alert('Permite ventanas emergentes para generar el PDF.'); return; }
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Recibo BORAZ</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}.brand{font-size:22px;font-weight:900;letter-spacing:2px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px}td{border-top:1px solid #ddd;padding:9px 0;font-size:13px}small{color:#666}.total{display:flex;justify-content:space-between;border-top:2px solid #111;margin-top:14px;padding-top:12px;font-size:20px;font-weight:900}@media print{button{display:none}}</style></head><body><div class="brand">BORAZ</div><div class="muted">Chiringo Club · Mesa ${order.mesa || MESA} · Pedido #${String(order.num || '000').padStart(3,'0')}</div><div class="muted">${new Date(order.ts || Date.now()).toLocaleString('es-ES')}</div><table>${rows}</table><div class="total"><span>Total</span><span>${money(order.total || 0)}</span></div><p class="muted">Pago en mesa · IVA incluido cuando aplique.</p><button onclick="window.print()">Imprimir / guardar PDF</button><script>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Recibo BORAZ</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}.brand{font-size:22px;font-weight:900;letter-spacing:2px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px}td{border-top:1px solid #ddd;padding:9px 0;font-size:13px}small{color:#666}.total{display:flex;justify-content:space-between;border-top:2px solid #111;margin-top:14px;padding-top:12px;font-size:20px;font-weight:900}@media print{button{display:none}}</style></head><body><div class="brand">BORAZ</div><div class="muted">Chiringo Club · Mesa ${order.mesa || MESA} · ${order.rounds > 1 ? order.rounds+' rondas' : 'Pedido #'+String(order.num || '000').padStart(3,'0')}</div><div class="muted">${new Date(order.ts || Date.now()).toLocaleString('es-ES')}</div><table>${rows}</table><div class="total"><span>Total</span><span>${money(order.total || 0)}</span></div><p class="muted">Pago en mesa · IVA incluido cuando aplique.</p><button onclick="window.print()">Imprimir / guardar PDF</button><script>setTimeout(()=>window.print(),250)<\/script></body></html>`);
   w.document.close();
 }
 
@@ -918,7 +943,6 @@ function resetAll(){
   document.getElementById("success").classList.remove("open");
   closeFeedback();
   closeReceipt();
-  lastOrderSnapshot = null;
   document.getElementById("toast").classList.remove("show");
   renderMenu(); renderCartBar(); renderBillBar();
   window.scrollTo({top:0,behavior:"smooth"});
