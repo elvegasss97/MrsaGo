@@ -125,6 +125,30 @@
   .pay-summary .st .l{font-size:13px;font-weight:700;}
   .pay-summary .st .v{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;}
   .secure{text-align:center;font-size:10px;color:var(--muted);margin-top:8px;}
+  .confirm-copy{background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:10px;font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .confirm-copy b{display:block;color:var(--dark);font-size:14px;margin-bottom:3px;}
+  .btn-secondary{width:100%;border:1px solid var(--borderM);background:#fff;color:var(--dark);border-radius:11px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;}
+
+  /* RECEIPT */
+  .receipt-view{position:fixed;inset:0;z-index:85;background:rgba(17,17,17,.45);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center;padding:14px 14px 0;}
+  .receipt-view.open{display:flex;}
+  .receipt-card{width:100%;max-width:430px;background:#fff;border-radius:26px 26px 0 0;padding:14px 18px 22px;box-shadow:0 -18px 42px rgba(0,0,0,.22);}
+  .receipt-grip{width:40px;height:4px;background:var(--border);border-radius:99px;margin:0 auto 14px;}
+  .receipt-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
+  .receipt-kicker{font-size:10px;color:var(--goldD);font-weight:900;text-transform:uppercase;letter-spacing:1.4px;margin-bottom:4px;}
+  .receipt-card h2{font-family:'Playfair Display',serif;font-size:23px;font-weight:900;line-height:1.08;}
+  .receipt-copy{font-size:13px;color:var(--muted);line-height:1.55;margin:0 0 14px;}
+  .receipt-box{background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;}
+  .receipt-meta{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-bottom:10px;}
+  .receipt-row{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding-top:8px;margin-top:8px;font-size:12px;}
+  .receipt-row:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+  .receipt-row b{font-weight:800;}
+  .receipt-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--borderM);padding-top:10px;margin-top:10px;}
+  .receipt-total span:first-child{font-size:13px;font-weight:800;}
+  .receipt-total span:last-child{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;}
+  .receipt-actions{display:grid;gap:8px;}
+  .receipt-actions .mini-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .receipt-actions a{text-decoration:none;text-align:center;}
 
   /* SUCCESS */
   .success{position:fixed;inset:0;z-index:70;background:#fff;max-width:430px;margin:0 auto;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;}
@@ -217,17 +241,16 @@
 
 <!-- PAY VIEW -->
 <div class="pay-view" id="payView">
-  <div class="pay-top"><button onclick="closePay()">←</button><h2>Confirmar pedido</h2></div>
+  <div class="pay-top"><button onclick="closePay()">←</button><h2>Revisar pedido</h2></div>
   <div class="pay-body">
-    <div class="pm sel" data-pm="card" onclick="selectPay('card')"><div class="em">💳</div><div class="pml"><div class="t">Pago en mesa</div><div class="s">Desactivado en piloto</div></div><div class="radio"></div></div>
-    <div class="pm" data-pm="bizum" onclick="selectPay('bizum')"><div class="em">📱</div><div class="pml"><div class="t">Bizum en mesa</div><div class="s">Desactivado en piloto</div></div><div class="radio"></div></div>
-    <div class="pm" data-pm="cash" onclick="selectPay('cash')"><div class="em">💵</div><div class="pml"><div class="t">Efectivo en mesa</div><div class="s">Pagarás al camarero en mesa</div></div><div class="radio"></div></div>
+    <div class="confirm-copy"><b>¿Seguro que quieres enviar este pedido a cocina?</b>Revisa cantidades y platos antes de confirmar. Una vez enviado, la comanda aparecerá en barra/cocina.</div>
     <div class="pay-summary">
-      <div class="h">Resumen del pedido</div>
+      <div class="h">Resumen del pedido · Mesa 13</div>
       <div id="paySummary"></div>
       <div class="st"><span class="l">Total</span><span class="v" id="payTotal">0,00 €</span></div>
     </div>
-    <button class="btn-primary" style="margin-top:14px;" id="confirmBtn" onclick="confirmPay()">Enviar pedido</button>
+    <button class="btn-primary" style="margin-top:14px;" id="confirmBtn" onclick="confirmPay()">Sí, enviar a cocina</button>
+    <button class="btn-secondary" style="margin-top:8px;" onclick="closePay();openCart();">No, revisar pedido</button>
     <p class="secure">Pedido sin pago online · pagarás al camarero en mesa</p>
   </div>
 </div>
@@ -276,6 +299,29 @@
         <button class="btn-primary" onclick="sendFeedbackComment()">Enviar feedback</button>
         <button class="feedback-skip" onclick="sendFeedbackComment(true)">Omitir</button>
       </div>
+    </div>
+  </div>
+</div>
+<!-- RECIBO -->
+<div class="receipt-view" id="receiptView" onclick="if(event.target.id==='receiptView')closeReceipt()">
+  <div class="receipt-card">
+    <div class="receipt-grip"></div>
+    <div class="receipt-top">
+      <div>
+        <div class="receipt-kicker">MesaGo · recibo</div>
+        <h2>¿Quieres recibo?</h2>
+      </div>
+      <button class="feedback-close" onclick="closeReceipt()" aria-label="Cerrar recibo">✕</button>
+    </div>
+    <p class="receipt-copy">La cuenta ya está solicitada. Puedes guardar el recibo ahora en PDF o enviártelo por email/WhatsApp si lo necesitas.</p>
+    <div class="receipt-box" id="receiptBox"></div>
+    <div class="receipt-actions">
+      <button class="btn-primary" onclick="printReceipt()">Descargar / guardar PDF</button>
+      <div class="mini-actions">
+        <a class="btn-secondary" id="receiptEmail" href="#">Email</a>
+        <a class="btn-secondary" id="receiptWhatsApp" target="_blank" rel="noopener" href="#">WhatsApp</a>
+      </div>
+      <button class="feedback-skip" onclick="closeReceipt()">No necesito recibo</button>
     </div>
   </div>
 </div>
@@ -461,6 +507,7 @@ let currentTab = "comer";
 let cart = {};       // key -> {id,name,variant,price,qty}
 let payMethod = "card";
 let myOrderId = null;
+let lastOrderSnapshot = null;
 let lastOrderStatus = null;
 let hasOrdered = false;
 let billRequested = false;
@@ -662,7 +709,7 @@ function renderPaySummary(){
     `<div class="sr"><span>${i.qty}× ${i.name} <span style="color:var(--muted)">(${i.variant})</span></span><span>${money(i.qty*i.price)}</span></div>`
   ).join("");
   document.getElementById("payTotal").innerText = money(total);
-  document.getElementById("confirmBtn").innerText = "Enviar pedido "+money(total);
+  document.getElementById("confirmBtn").innerText = "Sí, enviar a cocina · "+money(total);
 }
 
 // ─── NAV / SCROLL ───
@@ -695,7 +742,8 @@ function closeCart(){ document.getElementById("drawer").classList.remove("open")
 function openPay(){
   if(Object.keys(cart).length===0) return;
   closeCart();
-  confirmPay();
+  renderPaySummary();
+  document.getElementById("payView").classList.add("open");
 }
 function closePay(){ document.getElementById("payView").classList.remove("open"); }
 function selectPay(m){
@@ -717,6 +765,7 @@ async function confirmPay(){
     status: "received",
     ts: Date.now()
   };
+  lastOrderSnapshot = order;
   document.getElementById("confirmBtn").innerText="Enviando a cocina…";
   await askNotifications();
   try{
@@ -777,9 +826,58 @@ function sendFeedbackComment(skip=false){
   closeFeedback();
   showToast('Gracias por el feedback', 'Se lo pasamos al equipo para seguir mejorando la experiencia.');
 }
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
+}
+function getReceiptOrder(){
+  if(lastOrderSnapshot) return lastOrderSnapshot;
+  const items = Object.values(cart);
+  const {total} = cartSummary();
+  return {num:'PREVIO', mesa:MESA, total, items:items.map(i=>({name:i.name,variant:i.variant,qty:i.qty,price:i.price})), ts:Date.now(), pago:'en mesa'};
+}
+function receiptText(order){
+  const lines = [
+    'BORAZ Chiringo Club · MesaGo',
+    'Mesa '+(order.mesa || MESA)+' · Pedido #'+String(order.num || '000').padStart(3,'0'),
+    new Date(order.ts || Date.now()).toLocaleString('es-ES'),
+    '',
+    ...(order.items || []).map(i=>`${i.qty}x ${i.name} (${i.variant}) — ${money(i.qty*i.price)}`),
+    '',
+    'Total: '+money(order.total || 0),
+    'Pago: en mesa'
+  ];
+  return lines.join('\n');
+}
+function renderReceipt(){
+  const order = getReceiptOrder();
+  const box = document.getElementById('receiptBox');
+  const rows = (order.items || []).map(i=>`<div class="receipt-row"><span><b>${i.qty}× ${escapeHtml(i.name)}</b><br><span style="color:var(--muted)">${escapeHtml(i.variant)}</span></span><span>${money(i.qty*i.price)}</span></div>`).join('') || '<div class="receipt-row"><span>Cuenta solicitada</span><span>—</span></div>';
+  box.innerHTML = `<div class="receipt-meta"><span>Mesa ${order.mesa || MESA}</span><span>#${String(order.num || '000').padStart(3,'0')}</span></div>${rows}<div class="receipt-total"><span>Total</span><span>${money(order.total || 0)}</span></div>`;
+  const text = receiptText(order);
+  document.getElementById('receiptEmail').href = 'mailto:?subject='+encodeURIComponent('Recibo BORAZ Mesa '+(order.mesa || MESA))+'&body='+encodeURIComponent(text);
+  document.getElementById('receiptWhatsApp').href = 'https://wa.me/?text='+encodeURIComponent(text);
+}
+function openReceipt(){
+  renderReceipt();
+  document.getElementById('receiptView').classList.add('open');
+}
+function closeReceipt(){
+  document.getElementById('receiptView').classList.remove('open');
+}
+function printReceipt(){
+  const order = getReceiptOrder();
+  const rows = (order.items || []).map(i=>`<tr><td>${i.qty}× ${escapeHtml(i.name)}<br><small>${escapeHtml(i.variant)}</small></td><td style="text-align:right">${money(i.qty*i.price)}</td></tr>`).join('');
+  const w = window.open('', '_blank', 'width=420,height=640');
+  if(!w){ alert('Permite ventanas emergentes para generar el PDF.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Recibo BORAZ</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111}.brand{font-size:22px;font-weight:900;letter-spacing:2px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px}td{border-top:1px solid #ddd;padding:9px 0;font-size:13px}small{color:#666}.total{display:flex;justify-content:space-between;border-top:2px solid #111;margin-top:14px;padding-top:12px;font-size:20px;font-weight:900}@media print{button{display:none}}</style></head><body><div class="brand">BORAZ</div><div class="muted">Chiringo Club · Mesa ${order.mesa || MESA} · Pedido #${String(order.num || '000').padStart(3,'0')}</div><div class="muted">${new Date(order.ts || Date.now()).toLocaleString('es-ES')}</div><table>${rows}</table><div class="total"><span>Total</span><span>${money(order.total || 0)}</span></div><p class="muted">Pago en mesa · IVA incluido cuando aplique.</p><button onclick="window.print()">Imprimir / guardar PDF</button><script>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+  w.document.close();
+}
+
 async function requestBill(){
   if(billRequested){
-    showToast('✅ Cuenta ya solicitada', 'Ya hemos avisado a barra. El camarero te la llevará a la mesa.');
+    showToast('✅ Cuenta ya solicitada', 'Ya hemos avisado a barra. Puedes abrir el recibo cuando quieras.');
+    openReceipt();
     openFeedback();
     return;
   }
@@ -801,7 +899,8 @@ async function requestBill(){
   try{
     await pushOrder(bill);
     billRequested = true;
-    showToast('🧾 Cuenta solicitada', 'Hemos avisado a barra. El camarero te traerá la cuenta a la mesa.');
+    showToast('🧾 Cuenta solicitada', 'Hemos avisado a barra. Puedes descargar el recibo si lo necesitas.');
+    openReceipt();
     openFeedback();
     const hint=document.getElementById('statusHint');
     if(hint) hint.innerText='Cuenta solicitada. El camarero te la llevará a la mesa.';
@@ -818,6 +917,8 @@ function resetAll(){
   clearTimeout(waitingTimer);
   document.getElementById("success").classList.remove("open");
   closeFeedback();
+  closeReceipt();
+  lastOrderSnapshot = null;
   document.getElementById("toast").classList.remove("show");
   renderMenu(); renderCartBar(); renderBillBar();
   window.scrollTo({top:0,behavior:"smooth"});
