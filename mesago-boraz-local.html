@@ -189,6 +189,10 @@
   .toast.show{transform:translate(-50%,0);}
   .toast b{display:block;font-size:14px;margin-bottom:2px;}
  .setup-banner{background:#E8F5E9;border-bottom:1px solid #A5D6A7;padding:8px 14px;font-size:11px;color:#2E7D32;text-align:center;}
+
+  .demand-warning{display:none;background:#FFF6E5;border:1px solid #F1C46C;border-radius:14px;padding:13px 14px;margin-bottom:10px;color:#5B3B00;font-size:12.5px;line-height:1.5;}
+  .demand-warning.show{display:block;}
+  .demand-warning b{display:block;color:#3A2500;font-size:14px;margin-bottom:3px;}
 </style>
 </head>
 
@@ -243,6 +247,7 @@
 <div class="pay-view" id="payView">
   <div class="pay-top"><button onclick="closePay()">←</button><h2>Revisar pedido</h2></div>
   <div class="pay-body">
+    <div class="demand-warning" id="demandWarning"></div>
     <div class="confirm-copy"><b>¿Seguro que quieres enviar este pedido a cocina?</b>Revisa cantidades y platos antes de confirmar. Una vez enviado, la comanda aparecerá en barra/cocina.</div>
     <div class="pay-summary">
       <div class="h">Resumen del pedido · Mesa 13</div>
@@ -517,6 +522,7 @@ let orderSending = false;
 let feedbackRating = 0;
 let waitingTimer = null;
 let toastTimer = null;
+let demand = {active:false, waitMinutes:0};
 const MESA = 13;
 
 const money = (n) => n===null ? "Consultar" : n.toFixed(2).replace(".",",")+" €";
@@ -533,9 +539,28 @@ function watchMyOrder(id){
   const es = new EventSource(API_BASE + '/api/events');
   es.addEventListener('orders', ev=>{
     const data = JSON.parse(ev.data);
+    if(data.demand) setDemand(data.demand);
     const order = (data.orders||[]).find(o=>o.id===id);
     if(order && order.status && order.status !== lastOrderStatus) updateOrderStatus(order.status);
   });
+}
+
+function setDemand(next){
+  demand = next || {active:false, waitMinutes:0};
+  const box = document.getElementById('demandWarning');
+  if(!box) return;
+  const minutes = Number(demand.waitMinutes || 0);
+  box.classList.toggle('show', !!demand.active);
+  box.innerHTML = demand.active ? `<b>🔥 Alta demanda en este momento</b>El tiempo aproximado de espera es de ${minutes} minutos. Podrás decidir si quieres continuar antes de enviar.` : '';
+}
+async function refreshDemand(){
+  try{ const r=await fetch(API_BASE + '/api/demand'); const d=await r.json(); setDemand(d.demand); return d.demand || demand; }catch(e){ return demand; }
+}
+async function confirmDemandBeforeSending(){
+  const current = await refreshDemand();
+  if(!current?.active) return true;
+  const minutes = Number(current.waitMinutes || 0);
+  return confirm(`Estamos experimentando alta demanda.\n\nEl tiempo de espera aproximado es de ${minutes} minutos.\n\n¿Deseas continuar con el pedido?`);
 }
 function showToast(title, text){
   const el=document.getElementById('toast');
@@ -741,8 +766,9 @@ window.addEventListener("scroll",()=>{
 // ─── CART / PAY / SUCCESS ───
 function openCart(){ renderCartList(); document.getElementById("drawer").classList.add("open"); }
 function closeCart(){ document.getElementById("drawer").classList.remove("open"); }
-function openPay(){
+async function openPay(){
   if(Object.keys(cart).length===0 || orderSending) return;
+  await refreshDemand();
   renderPaySummary();
   const btn = document.getElementById("confirmBtn");
   if(btn){ btn.disabled = false; }
@@ -758,6 +784,8 @@ async function confirmPay(){
   if(orderSending) return;
   const items = Object.values(cart);
   if(!items.length) return;
+  const wantsToContinue = await confirmDemandBeforeSending();
+  if(!wantsToContinue) return;
   orderSending = true;
   const confirmBtn = document.getElementById("confirmBtn");
   if(confirmBtn) confirmBtn.disabled = true;
@@ -966,7 +994,7 @@ function resetAll(){
 }
 
 // ─── INIT ───
-renderTabs(); renderSectionNav(); renderMenu(); renderCartBar();
+renderTabs(); renderSectionNav(); renderMenu(); renderCartBar(); refreshDemand();
 </script>
 </body>
 </html>

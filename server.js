@@ -8,13 +8,17 @@ const PORT = Number(process.env.PORT || 8787);
 const ROOT = __dirname;
 const orders = new Map();
 const clients = new Set();
+const demand = { active:false, waitMinutes:0, updatedAt:null };
 
 function sendJson(res, code, data){
   res.writeHead(code, {'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*'});
   res.end(JSON.stringify(data));
 }
+function snapshot(){
+  return {orders:[...orders.values()].sort((a,b)=>(b.ts||0)-(a.ts||0)), demand};
+}
 function broadcast(){
-  const data = JSON.stringify({orders:[...orders.values()].sort((a,b)=>(b.ts||0)-(a.ts||0))});
+  const data = JSON.stringify(snapshot());
   for(const res of clients){
     try{ res.write(`event: orders\ndata: ${data}\n\n`); }catch{}
   }
@@ -49,11 +53,20 @@ const server = http.createServer(async (req,res)=>{
       res.writeHead(204, {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'}); return res.end();
     }
     if(req.method === 'GET' && url.pathname === '/api/orders') return sendJson(res,200,{orders:[...orders.values()].sort((a,b)=>(b.ts||0)-(a.ts||0))});
+    if(req.method === 'GET' && url.pathname === '/api/demand') return sendJson(res,200,{demand});
+    if(req.method === 'POST' && url.pathname === '/api/demand'){
+      const data = await body(req);
+      demand.active = !!data.active;
+      demand.waitMinutes = demand.active ? Math.max(1, Math.min(240, Number(data.waitMinutes || 0) || 15)) : 0;
+      demand.updatedAt = Date.now();
+      broadcast();
+      return sendJson(res,200,{ok:true,demand});
+    }
     if(req.method === 'GET' && url.pathname === '/api/events'){
       res.writeHead(200, {'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','Access-Control-Allow-Origin':'*'});
       clients.add(res);
       res.write('retry: 1000\n\n');
-      res.write(`event: orders\ndata: ${JSON.stringify({orders:[...orders.values()]})}\n\n`);
+      res.write(`event: orders\ndata: ${JSON.stringify(snapshot())}\n\n`);
       req.on('close',()=>clients.delete(res));
       return;
     }
