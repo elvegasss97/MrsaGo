@@ -74,7 +74,7 @@ const server = http.createServer(async (req,res)=>{
       const order = await body(req);
       if(!order.id) order.id = Date.now()+'-'+Math.floor(Math.random()*999);
       if(!order.ts) order.ts = Date.now();
-      if(!order.status) order.status = 'received';
+      if(!order.status) order.status = 'pending';
       orders.set(order.id, order); broadcast(); return sendJson(res,200,{ok:true,order});
     }
     const statusMatch = url.pathname.match(/^\/api\/orders\/([^/]+)\/status$/);

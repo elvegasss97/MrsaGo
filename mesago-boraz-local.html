@@ -248,7 +248,8 @@
   <div class="pay-top"><button onclick="closePay()">←</button><h2>Revisar pedido</h2></div>
   <div class="pay-body">
     <div class="demand-warning" id="demandWarning"></div>
-    <div class="confirm-copy"><b>¿Seguro que quieres enviar este pedido a cocina?</b>Revisa cantidades y platos antes de confirmar. Una vez enviado, la comanda aparecerá en barra/cocina.</div>
+    <div class="confirm-copy" id="sessionCopy"><b>Sesión temporal de mesa</b>Este móvil puede pedir desde la Mesa 13 durante 2 horas desde que abrió el QR.</div>
+    <div class="confirm-copy"><b>¿Seguro que quieres enviar este pedido a cocina?</b>El pedido llegará primero a barra/cocina para aceptarlo antes de prepararlo.</div>
     <div class="pay-summary">
       <div class="h">Resumen del pedido · Mesa 13</div>
       <div id="paySummary"></div>
@@ -524,6 +525,8 @@ let waitingTimer = null;
 let toastTimer = null;
 let demand = {active:false, waitMinutes:0};
 const MESA = 13;
+const SESSION_DURATION_MS = 2 * 60 * 60 * 1000;
+const SESSION_KEY = `mesago_session_mesa_${MESA}`;
 
 const money = (n) => n===null ? "Consultar" : n.toFixed(2).replace(".",",")+" €";
 
@@ -562,6 +565,43 @@ async function confirmDemandBeforeSending(){
   const minutes = Number(current.waitMinutes || 0);
   return confirm(`Estamos experimentando alta demanda.\n\nEl tiempo de espera aproximado es de ${minutes} minutos.\n\n¿Deseas continuar con el pedido?`);
 }
+
+function readSession(){
+  try{ return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }catch(e){ return null; }
+}
+function writeSession(){
+  const now = Date.now();
+  const session = {
+    id: Math.random().toString(36).slice(2,8).toUpperCase(),
+    mesa: MESA,
+    createdAt: now,
+    expiresAt: now + SESSION_DURATION_MS
+  };
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify(session)); }catch(e){}
+  return session;
+}
+function getSession(){
+  const session = readSession();
+  if(session && session.mesa === MESA) return session;
+  return writeSession();
+}
+function sessionExpired(session=getSession()){
+  return !session || Date.now() > Number(session.expiresAt || 0);
+}
+function sessionMinutesLeft(){
+  const session = getSession();
+  return Math.max(0, Math.ceil((Number(session.expiresAt || 0) - Date.now()) / 60000));
+}
+function ensureActiveSession(){
+  const session = getSession();
+  if(!sessionExpired(session)) return true;
+  alert('Sesión caducada. Por seguridad, vuelve a escanear el QR de la mesa para pedir de nuevo.');
+  return false;
+}
+function renewTableSession(){
+  writeSession();
+  showToast('✅ Sesión renovada', 'Tienes 2 horas para pedir desde esta mesa.');
+}
 function showToast(title, text){
   const el=document.getElementById('toast');
   el.innerHTML=`<b>${title}</b>${text}`;
@@ -579,23 +619,27 @@ function browserNotify(title, body){
   }
 }
 function setSuccessStatus(status){
- const titles={received:"¡Pedido enviado a cocina!",preparing:"👩‍🍳 Cocina está preparando tu pedido",served:"🍽️ ¡Tu pedido está servido!",cancelled:"Pedido cancelado"};
- const msgs={received:"Tu comanda acaba de llegar a la cocina de Boraz.",preparing:"El equipo de Boraz ya se ha puesto manos a la obra.",served:"¡Que aproveche! ¿Te apetece pedir algo más?",cancelled:"El pedido se ha cancelado desde barra/cocina."};
- const hints={received:"No te preocupes, en breves empezaremos a preparar tu pedido.",preparing:"Te avisamos porque cocina ya ha aceptado la comanda.",served:"Puedes pedir otra ronda cuando quieras.",cancelled:"Pregunta al personal si necesitas ayuda con tu pedido."};
+ const titles={pending:"Pedido enviado · pendiente de aceptar",received:"✅ Pedido aceptado",preparing:"👩‍🍳 Cocina está preparando tu pedido",served:"🍽️ ¡Tu pedido está servido!",cancelled:"Pedido cancelado",rejected:"Pedido rechazado"};
+ const msgs={pending:"Tu comanda ha llegado a barra/cocina y está esperando confirmación.",received:"Barra/cocina ha aceptado tu pedido.",preparing:"El equipo de Boraz ya se ha puesto manos a la obra.",served:"¡Que aproveche! ¿Te apetece pedir algo más?",cancelled:"El pedido se ha cancelado desde barra/cocina.",rejected:"Barra/cocina no ha aceptado este pedido. Pregunta al personal si necesitas ayuda."};
+ const hints={pending:"Si la mesa está ocupada, el personal lo aceptará en breve.",received:"Pedido aceptado. En breves empezarán a prepararlo.",preparing:"Te avisamos porque cocina ya ha aceptado la comanda.",served:"Puedes pedir otra ronda cuando quieras.",cancelled:"Pregunta al personal si necesitas ayuda con tu pedido.",rejected:"Puede que la mesa esté vacía o haya habido un error. Habla con el personal."};
  const h=document.querySelector("#success h2"); const m=document.querySelector("#success .msg"); const st=document.querySelector("#success .status"); const hint=document.getElementById("statusHint");
  if(h) h.innerText=titles[status]||titles.received;
  if(m) m.innerText=msgs[status]||msgs.received;
- if(st) st.innerText= status==="received"?"📥 Recibido": status==="preparing"?"🍳 En preparación": status==="served"?"🍽️ Servido":"⚠️ Cancelado";
+ if(st) st.innerText= status==="pending"?"⏳ Pendiente": status==="received"?"✅ Aceptado": status==="preparing"?"🍳 En preparación": status==="served"?"🍽️ Servido": status==="rejected"?"⛔ Rechazado":"⚠️ Cancelado";
  if(hint) hint.innerText=hints[status]||hints.received;
 }
 function updateOrderStatus(status){
   lastOrderStatus = status;
   setSuccessStatus(status);
-  if(status === 'received'){
+  if(status === 'pending'){
     clearTimeout(waitingTimer);
     waitingTimer = setTimeout(()=>{
-      if(lastOrderStatus === 'received') showToast('Pedido recibido', 'No te preocupes, en breves empezaremos a preparar tu pedido.');
+      if(lastOrderStatus === 'pending') showToast('Pedido pendiente', 'Barra/cocina todavía tiene que aceptarlo.');
     }, 12000);
+  }
+  if(status === 'received'){
+    clearTimeout(waitingTimer);
+    showToast('✅ Pedido aceptado', 'Barra/cocina ha aceptado la comanda.');
   }
   if(status === 'preparing'){
     clearTimeout(waitingTimer);
@@ -737,6 +781,8 @@ function renderPaySummary(){
   ).join("");
   document.getElementById("payTotal").innerText = money(total);
   document.getElementById("confirmBtn").innerText = "Sí, enviar a cocina · "+money(total);
+  const sessionCopy = document.getElementById("sessionCopy");
+  if(sessionCopy) sessionCopy.innerHTML = sessionExpired() ? `<b>Sesión caducada</b>Vuelve a escanear el QR de la mesa para poder pedir.` : `<b>Sesión temporal de mesa</b>Te quedan aproximadamente ${sessionMinutesLeft()} min para pedir desde la Mesa ${MESA}.`;
 }
 
 // ─── NAV / SCROLL ───
@@ -768,6 +814,7 @@ function openCart(){ renderCartList(); document.getElementById("drawer").classLi
 function closeCart(){ document.getElementById("drawer").classList.remove("open"); }
 async function openPay(){
   if(Object.keys(cart).length===0 || orderSending) return;
+  if(!ensureActiveSession()) return;
   await refreshDemand();
   renderPaySummary();
   const btn = document.getElementById("confirmBtn");
@@ -784,6 +831,7 @@ async function confirmPay(){
   if(orderSending) return;
   const items = Object.values(cart);
   if(!items.length) return;
+  if(!ensureActiveSession()) return;
   const wantsToContinue = await confirmDemandBeforeSending();
   if(!wantsToContinue) return;
   orderSending = true;
@@ -799,7 +847,9 @@ async function confirmPay(){
     total,
     pago: "en mesa",
     items: items.map(i=>({name:i.name,variant:i.variant,qty:i.qty,price:i.price})),
-    status: "received",
+    status: "pending",
+    sessionId: getSession().id,
+    sessionExpiresAt: getSession().expiresAt,
     ts: Date.now()
   };
   lastOrderSnapshot = order;
@@ -816,7 +866,7 @@ async function confirmPay(){
   }
   hasOrdered = true;
   document.getElementById("orderNum").innerText = "#"+String(n).padStart(3,"0");
-  updateOrderStatus("received");
+  updateOrderStatus("pending");
   closePay();
   document.getElementById("success").classList.add("open");
   orderSending = false;
@@ -994,7 +1044,7 @@ function resetAll(){
 }
 
 // ─── INIT ───
-renderTabs(); renderSectionNav(); renderMenu(); renderCartBar(); refreshDemand();
+getSession(); renderTabs(); renderSectionNav(); renderMenu(); renderCartBar(); refreshDemand();
 </script>
 </body>
 </html>
